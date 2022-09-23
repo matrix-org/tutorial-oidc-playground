@@ -1,0 +1,110 @@
+- name: Create synapse pod
+  containers.podman.podman_pod:
+    name: pod-synapse
+    state: created
+
+- name: Stop synapse pod
+  containers.podman.podman_pod:
+    name: pod-synapse
+    state: stopped
+
+- name: Create synapse's postgresql
+  containers.podman.podman_container:
+    name: synapse-postgres
+    image: docker.io/postgres:12
+    restart: yes
+    pod: pod-synapse
+    state: stopped
+    volume:
+      - synapse_pg_pdata:/var/lib/postgresql/data
+    env: {
+      "POSTGRES_USER": "synapse",
+      "POSTGRES_PASSWORD": "{{ synapse_pg_password }}",
+      "POSTGRES_INITDB_ARGS": "--encoding=UTF-8 --lc-collate=C --lc-ctype=C",
+    }
+
+- name: Check if homeserver signing key had been generated
+  ansible.builtin.stat:
+    path: /var/lib/containers/storage/volumes/synapse_data/_data/{{ base_domain }}.signing.key
+  register: stat_signing_key
+
+- name: Generate Synapse configuration and singing key
+  containers.podman.podman_container:
+    name: synapse
+    image: docker.io/matrixdotorg/synapse:v1.65.0
+    rm: yes
+    command: generate
+    env: {
+      "SYNAPSE_SERVER_NAME": "{{ base_domain }}",
+      "SYNAPSE_REPORT_STATS": "yes"
+    }
+    volume:
+      - synapse_data:/data
+  when: not stat_signing_key.stat.exists
+
+- name: Wait for the configuration to be written to disk
+  ansible.builtin.pause:
+    seconds: 5
+  when: not stat_signing_key.stat.exists  
+
+- name: Read synapse configuration
+  ansible.builtin.shell: cat /var/lib/containers/storage/volumes/synapse_data/_data/homeserver.yaml
+  register: homeserver_config_from_file
+
+- name: Fetch synapse config values
+  ansible.builtin.set_fact: 
+    synapse_registration_shared_secret: "{{ homeserver_config_from_file_parsed.registration_shared_secret }}"
+    synapse_macaroon_secret_key: "{{ homeserver_config_from_file_parsed.macaroon_secret_key }}"
+    synapse_form_secret: "{{ homeserver_config_from_file_parsed.form_secret }}"
+  vars:
+    homeserver_config_from_file_parsed: "{{ homeserver_config_from_file.stdout | from_yaml }}"
+
+- name: Create synapse container and service
+  containers.podman.podman_container:
+    name: synapse
+    image: docker.io/matrixdotorg/synapse:v1.65.0
+    restart: yes
+    pod: pod-synapse
+    state: stopped
+    volume:
+      - synapse_data:/data
+    labels: {
+      "traefik.enable": "true",
+      "traefik.http.routers.synapse.entrypoints": "websecure",
+      "traefik.http.routers.synapse.rule": "Host(`matrix.{{ base_domain }}`)",
+      "traefik.http.routers.synapse.tls": "true",
+      "traefik.http.routers.synapse.tls.certresolver": "letls",
+      "traefik.http.services.synapse.loadbalancer.server.port": "8008",
+    }
+    requires:
+      - synapse-postgres
+
+- name: Copy Synapse's homeserver configuration file
+  ansible.builtin.template:
+    src: homeserver.yaml.j2
+    dest: /var/lib/containers/storage/volumes/synapse_data/_data/homeserver.yaml
+
+- name: Copy Synapse's logging configuration file
+  ansible.builtin.template:
+    src: log.config.j2
+    dest: /var/lib/containers/storage/volumes/synapse_data/_data/matrix.{{ base_domain }}.log.config
+
+- name: Generate the systemd unit for Synapse
+  containers.podman.podman_pod:
+    name: pod-synapse
+    generate_systemd:
+      path: /etc/systemd/system
+      restart_policy: always   
+
+- name: Enable synapse unit
+  ansible.builtin.systemd:
+    name: pod-pod-synapse.service
+    enabled: yes
+    daemon_reload: yes
+
+- name: Make sure synapse is running
+  ansible.builtin.systemd:
+    name: pod-pod-synapse.service
+    state: started
+    daemon_reload: yes
+

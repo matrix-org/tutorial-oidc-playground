@@ -1,0 +1,20 @@
+api: {}
+
+providers:
+  docker:
+    exposedByDefault: false
+
+entrypoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+certificatesresolvers:
+  letls:
+    acme:
+      email: "{{ letsencrypt_email }}"
+{{ use_le_production_ca | ternary("", "      caServer: https://acme-staging-v02.api.letsencrypt.org/directory") }}
+      storage: "/etc/traefik/acme.json"
+      httpchallenge:
+        entrypoint: "web"

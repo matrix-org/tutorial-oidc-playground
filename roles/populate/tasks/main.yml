@@ -1,0 +1,87 @@
+- name: Create an admin user account on Synapse
+  ansible.builtin.shell: podman exec -t synapse register_new_matrix_user -u {{ synapse_superadmin_username }} -p {{ synapse_superadmin_password }} -a -c /data/homeserver.yaml "http://localhost:8008"
+
+- name: Retrieve the admin account access token on Synapse
+  ansible.builtin.uri:
+    url: https://matrix.{{ base_domain }}/_matrix/client/v3/login
+    body_format: json
+    body: {"type": "m.login.password", "identifier": {"type": "m.id.user", "user": "{{ synapse_superadmin_username }}"}, "password": "{{ synapse_superadmin_password }}"}
+    method: POST
+    return_content: yes
+  register: synapse_admin_reg_response
+
+- name: Store the Synapse admin access token
+  ansible.builtin.set_fact:
+    synapse_admin_access_token: "{{ synapse_admin_reg_response | community.general.json_query('json.access_token') }}"
+
+- name: Add Stephen Baxter to Synapse
+  ansible.builtin.uri:
+    method: PUT
+    url: https://matrix.{{ base_domain }}/_synapse/admin/v2/users/@sbaxter:{{ base_domain }}
+    headers: {
+      "Authorization": "Bearer {{ synapse_admin_access_token }}",
+      "Content-Type": "application/json",
+    }
+    body_format: json
+    body: {"password": "weakpassword", "displayname": "Stephen Baxter","threepids": [{"medium": "email", "address": "sbaxter@example.com"}]}
+    status_code: 201
+
+- name: Add Stephen Baxter to Authentik too
+  ansible.builtin.uri:
+    method: POST
+    url: https://login.{{ base_domain }}/api/v3/core/users/
+    headers: {
+      "Authorization": "Bearer {{ authentik_admin_access_token }}",
+      "Content-Type": "application/json",
+    }
+    body_format: json
+    body: {"username": "sbaxter", "name": "Stephen Baxter", "groups": [], "email": "sbaxter@example.com"}
+    status_code: 201
+
+- name: Add Douglas Adams to Synapse
+  ansible.builtin.uri:
+    method: PUT
+    url: https://matrix.{{ base_domain }}/_synapse/admin/v2/users/@doug:{{ base_domain }}
+    headers: {
+      "Authorization": "Bearer {{ synapse_admin_access_token }}",
+      "Content-Type": "application/json",
+    }
+    body_format: json
+    body: {"password": "weakpassword", "displayname": "Doug","threepids": [{"medium": "email", "address": "dadams@example.com"}]}
+    status_code: 201
+
+- name: Add Douglas Adams to Authentik with different username
+  ansible.builtin.uri:
+    method: POST
+    url: https://login.{{ base_domain }}/api/v3/core/users/
+    headers: {
+      "Authorization": "Bearer {{ authentik_admin_access_token }}",
+      "Content-Type": "application/json",
+    }
+    body_format: json
+    body: {"username": "dadams", "name": "Douglas Adams", "groups": [], "email": "dadams@example.com"}
+    status_code: 201
+
+- name: Add Isaac Asimov in Synapse but not in Authentik
+  ansible.builtin.uri:
+    method: PUT
+    url: https://matrix.{{ base_domain }}/_synapse/admin/v2/users/@iasimov:{{ base_domain }}
+    headers: {
+      "Authorization": "Bearer {{ synapse_admin_access_token }}",
+      "Content-Type": "application/json",
+    }
+    body_format: json
+    body: {"password": "weakpassword", "displayname": "Isaac A.","threepids": [{"medium": "email", "address": "iasimov@example.com"}]}
+    status_code: 201
+
+- name: Add Nora K. Jemisin to Authentik but not in Synapse
+  ansible.builtin.uri:
+    method: POST
+    url: https://login.{{ base_domain }}/api/v3/core/users/
+    headers: {
+      "Authorization": "Bearer {{ authentik_admin_access_token }}",
+      "Content-Type": "application/json",
+    }
+    body_format: json
+    body: {"username": "nkjemisin", "name": "Nora K. Jemisin", "groups": [], "email": "nkjemisin@example.com"}
+    status_code: 201

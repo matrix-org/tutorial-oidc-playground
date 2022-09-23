@@ -1,0 +1,51 @@
+- name: Create the traefik container and service
+  containers.podman.podman_container:
+    name: traefik
+    image: docker.io/traefik
+    state: created
+    restart: yes
+    privileged: true
+    volume:
+      - traefik_config:/etc/traefik/
+    mount:
+      - "type=bind,source=/var/run/podman/podman.sock,destination=/var/run/docker.sock,ro=true"
+    ports:
+      - 80:80
+      - 443:443
+    labels: {
+      'traefik.enable': 'false',
+      'traefik.http.routers.traefik.entrypoints': 'websecure',
+      'traefik.http.routers.traefik.tls': 'true',
+      'traefik.http.routers.traefik.tls.certresolver': 'letls',
+      'traefik.http.routers.traefik.service': 'api@internal',
+      'traefik.http.routers.http-catchall.rule': 'hostregexp(`{host:.+}`)',
+      'traefik.http.routers.http-catchall.entrypoints': 'web',
+      'traefik.http.routers.http-catchall.middlewares': 'redirect-to-https@docker',
+      'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme': 'https',
+    }
+    generate_systemd:
+      path: /etc/systemd/system/
+      restart_policy: always
+
+- name: Make sure traefik container and service are stopped
+  ansible.builtin.systemd:
+    name: container-traefik.service
+    state: stopped
+    daemon_reload: yes
+
+- name: Create traefik configuration
+  ansible.builtin.template:
+    src: traefik.yaml.j2
+    dest: /var/lib/containers/storage/volumes/traefik_config/_data/traefik.yaml
+
+- name: Make sure the traefik service is enabled
+  ansible.builtin.systemd:
+    name: container-traefik.service
+    enabled: yes
+    daemon_reload: yes
+
+- name: Make sure the traefik service is running
+  ansible.builtin.systemd:
+    name: container-traefik.service
+    state: started
+    daemon_reload: yes

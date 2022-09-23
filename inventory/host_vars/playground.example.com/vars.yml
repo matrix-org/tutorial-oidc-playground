@@ -1,0 +1,23 @@
+# Let's Encrypt
+use_le_production_ca: false # Lets Encrypt has rate limiting for certificates delivery. Set to true when you are certain your domain records are set
+letsencrypt_email: you@playground.example.com # Lets Encrypt will refuse to deliver certificates with a mail ending with @example.com
+
+# Domains
+# BEFORE LAUNCHING THE PLAYBOOK remember to set a:
+# * A record from base_domain to your server
+# * CNAME record from matrix.base_domain to base_domain
+# * CNAME record from login.base_domain to base_domain
+base_domain: # Update me with your base domain 
+
+# Synapse
+synapse_pg_password:          # update me with the result of `openssl rand -base64 36`
+synapse_superadmin_username: mysuperadmin # you can change me but you don't have to
+synapse_superadmin_password:  # update me with the result of `openssl rand -base64 30`
+# synapse_oidc_client_id:     # Uncomment and fill with the client_id when creating a provider in Authentik
+# synapse_oidc_client_secret: # Uncomment and fill with the client_secret when creating a provider in Authentik 
+
+# Authentik
+authentik_pg_password:        # update me with the result of `openssl rand -base64 36`
+authentik_bootstrap_password: # update me with the result of `openssl rand -base64 35`
+authentik_secret_key:         # update me with the result of `openssl rand -base64 37`
+authentik_admin_access_token: # update me with the result of `openssl rand -hex 128`

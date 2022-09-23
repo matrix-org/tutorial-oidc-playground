@@ -1,0 +1,70 @@
+---
+
+- name: Sandbox
+  hosts: sandbox
+
+  tasks:
+  - name: Install podman
+    ansible.builtin.dnf:
+     name: "podman"
+     state: present
+    tags: [never, install]
+
+  - name: Make sure podman is enabled
+    ansible.builtin.systemd:
+      name: podman.service
+      enabled: yes
+      daemon_reload: yes
+    tags: [never, install]
+
+  - name: Make sure podman is running
+    ansible.builtin.systemd:
+      name: podman.service
+      state: started
+      daemon_reload: yes
+    tags: [never, install]
+
+  - name: Allow traffic in default firewalld zone for http service
+    ansible.posix.firewalld:
+      service: http
+      permanent: yes
+      state: enabled
+    tags: [never, install]
+
+  - name: Allow traffic in default firewalld zone for https service
+    ansible.posix.firewalld:
+      service: https
+      permanent: yes
+      state: enabled
+    tags: [never, install]
+
+  - name: Import the authentik role
+    import_role:
+      name: authentik
+    tags: [never, install]
+
+  - name: Import the synapse role
+    import_role:
+      name: synapse
+    tags: [never, install, synapse]
+
+  - name: Import the nginx role
+    import_role:
+      name: nginx
+    tags: [never, install]
+
+  - name: Import the traefik role
+    import_role:
+      name: traefik
+    tags: [never, install]
+
+  - name: Populate Synapse and authentik
+    import_role:
+      name: populate
+    tags: [never, populate]
+
+  - name: Restart traefik
+    ansible.builtin.systemd:
+      name: pod-authentik.service
+      state: restarted
+    tags: [never, restart-traefik]

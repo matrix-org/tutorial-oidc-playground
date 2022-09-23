@@ -1,0 +1,36 @@
+- name: Create nginx container and service
+  containers.podman.podman_container:
+    name: nginx
+    image: docker.io/nginx:1.20.2
+    restart: yes
+    volume:
+      - nginx_conf:/etc/nginx/conf.d
+      - nginx_blog:/var/www/blog
+    labels: {
+      "traefik.enable": "true",
+      "traefik.http.routers.nginx.entrypoints": "websecure",
+      "traefik.http.routers.nginx.rule": "(Host(`{{ base_domain }}`) && PathPrefix(`/.well-known/matrix`))",
+      "traefik.http.routers.nginx.tls": "true",
+      "traefik.http.routers.nginx.tls.certresolver": "letls",
+    }
+    generate_systemd:
+      path: /etc/systemd/system/
+      restart_policy: always
+
+- name: Copy the configuration to serve synapse well-known files
+  ansible.builtin.template:
+    src: default.conf.j2
+    dest: /var/lib/containers/storage/volumes/nginx_conf/_data/default.conf
+
+- name: Make sure the nginx service is enabled
+  ansible.builtin.systemd:
+    name: container-nginx.service
+    enabled: yes
+    daemon_reload: yes
+
+- name: Make sure the nginx service is running
+  ansible.builtin.systemd:
+    name: container-nginx.service
+    state: started
+    daemon_reload: yes
+

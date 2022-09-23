@@ -1,0 +1,97 @@
+- name: Create authentik pod
+  containers.podman.podman_pod:
+    name: authentik
+    state: created
+
+- name: Stop authentik pod
+  containers.podman.podman_pod:
+    name: authentik
+    state: stopped
+
+- name: Create authentik database
+  containers.podman.podman_container:
+    name: authentik-db
+    image: docker.io/postgres:12-alpine
+    pod: authentik
+    state: stopped
+    volume:
+      - authentik_pg_data:/var/lib/postgresql/data
+    env: {
+      "POSTGRES_USER": "authentik",
+      "POSTGRES_PASSWORD": "{{ authentik_pg_password }}",
+      "POSTGRES_DB": "authentik",
+    }
+
+- name: Create authentik cache
+  containers.podman.podman_container:
+    name: authentik-cache
+    image: docker.io/redis:alpine
+    pod: authentik
+    state: stopped
+    volume:
+      - authentik_redis:/data
+
+- name: Create authentik server
+  containers.podman.podman_container:
+    name: authentik-server
+    image: docker.io/beryju/authentik:2022.8
+    pod: authentik
+    state: stopped
+    command: server
+    env: {
+      "AUTHENTIK_REDIS__HOST": "127.0.0.1",
+      "AUTHENTIK_POSTGRESQL__HOST": "127.0.0.1",
+      "AUTHENTIK_POSTGRESQL__USER": "authentik",
+      "AUTHENTIK_POSTGRESQL__NAME": "authentik",
+      "AUTHENTIK_POSTGRESQL__PASSWORD": "{{ authentik_pg_password }}",
+      "AUTHENTIK_SECRET_KEY": "{{ authentik_secret_key }}",
+      "AUTHENTIK_BOOTSTRAP_PASSWORD": "{{ authentik_bootstrap_password }}",
+      "AUTHENTIK_BOOTSTRAP_TOKEN": "{{ authentik_admin_access_token }}"
+    }
+    labels: {
+      "traefik.enable": "true",
+      "traefik.http.routers.authentik.entrypoints": "websecure",
+      "traefik.http.routers.authentik.rule": "Host(`login.{{ base_domain }}`)",
+      "traefik.http.routers.authentik.tls": "true",
+      "traefik.http.routers.authentik.tls.certresolver": "letls",
+      "traefik.http.services.authentik.loadbalancer.server.port": "9000",
+    }
+    requires:
+      - authentik-db
+
+- name: Create authentik worker
+  containers.podman.podman_container:
+    name: authentik-worker
+    image: docker.io/beryju/authentik:2022.8
+    pod: authentik
+    state: stopped
+    command: worker
+    env: {
+      "AUTHENTIK_REDIS__HOST": "127.0.0.1",
+      "AUTHENTIK_POSTGRESQL__HOST": "127.0.0.1",
+      "AUTHENTIK_POSTGRESQL__USER": "authentik",
+      "AUTHENTIK_POSTGRESQL__NAME": "authentik",
+      "AUTHENTIK_POSTGRESQL__PASSWORD": "{{ authentik_pg_password }}",
+      "AUTHENTIK_SECRET_KEY": "{{ authentik_secret_key }}",
+      "AUTHENTIK_BOOTSTRAP_PASSWORD": "{{ authentik_bootstrap_password }}",
+      "AUTHENTIK_BOOTSTRAP_TOKEN": "{{ authentik_admin_access_token }}",
+    }
+
+- name: Generate authentik systemd unit
+  containers.podman.podman_pod:
+    name: authentik
+    generate_systemd:
+      path: /etc/systemd/system
+      restart_policy: always
+
+- name: Enable authentik unit
+  ansible.builtin.systemd:
+    name: pod-authentik.service
+    enabled: yes
+    daemon_reload: yes
+
+- name: Start authentik
+  ansible.builtin.systemd:
+    name: pod-authentik.service
+    state: started
+
