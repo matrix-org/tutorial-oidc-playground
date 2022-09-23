@@ -24,7 +24,7 @@ with a few users.
 | Isaac Asimov    | iasimov             | iasimov@example.com |                       |                       |
 | Nora K. Jemisin |                     |                     | nkjemisin             | nkjemisin@example.com |
 
-## Setting-up the base environment
+## Setting-up the base environment
 
 ### Pre-requisites
 
