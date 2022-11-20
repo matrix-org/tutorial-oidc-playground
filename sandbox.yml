@@ -24,14 +24,14 @@
       daemon_reload: yes
     tags: [never, install]
 
-  - name: Allow traffic in default firewalld zone for http service
+  - name: Allow traefik in default firewalld zone for http service
     ansible.posix.firewalld:
       service: http
       permanent: yes
       state: enabled
     tags: [never, install]
 
-  - name: Allow traffic in default firewalld zone for https service
+  - name: Allow traefik in default firewalld zone for https service
     ansible.posix.firewalld:
       service: https
       permanent: yes
