@@ -64,7 +64,7 @@ ansible-playbook -i inventory/playground sandbox.yml --tags install
 After executing the playbook, head to https://login.yourdomain and you should
 see Authentik's login page. Head to https://matrix.yourdomain and you should see
 Synapse's welcome page. If get a 404, traefik might have hard a hard time
-routing traffic to Synapse's container and needs a restart. You can do so with:
+routing traefik to Synapse's container and needs a restart. You can do so with:
 
 ```
 ansible-playbook -i inventory/playground sandbox.yml --tags restart-traefik
@@ -79,7 +79,7 @@ use Authentik.
 Run the following command to populate both services:
 
 ```
-ansible-playbook -i inventoy/playground sandbox.yml --tags populate
+ansible-playbook -i inventory/playground sandbox.yml --tags populate
 ```
 
 ## Connecting Synapse to Authentik
